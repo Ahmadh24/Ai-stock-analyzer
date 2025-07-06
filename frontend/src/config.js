@@ -1,5 +1,5 @@
 const config = {
-  apiUrl: process.env.REACT_APP_API_URL || 'http://localhost:5000'
+  apiUrl: process.env.REACT_APP_API_URL || 'https://ai-stock-analyzer-n8w7.onrender.com'
 };
 
 export default config; 
