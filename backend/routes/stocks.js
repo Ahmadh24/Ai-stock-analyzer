@@ -8,6 +8,42 @@ const BASE_URL = 'https://www.alphavantage.co/query';
 // Debug: Check if API key is loaded
 console.log('Alpha Vantage API Key loaded:', ALPHA_VANTAGE_API_KEY ? 'YES' : 'NO');
 
+// Test API key and connectivity
+router.get('/test', async (req, res) => {
+  try {
+    if (!ALPHA_VANTAGE_API_KEY) {
+      return res.status(500).json({ 
+        error: 'API key not configured',
+        hasKey: false 
+      });
+    }
+
+    // Test with a simple API call
+    const response = await axios.get(BASE_URL, {
+      params: {
+        function: 'GLOBAL_QUOTE',
+        symbol: 'AAPL',
+        apikey: ALPHA_VANTAGE_API_KEY
+      }
+    });
+
+    res.json({
+      hasKey: true,
+      keyLength: ALPHA_VANTAGE_API_KEY.length,
+      response: response.data,
+      status: 'API is working'
+    });
+  } catch (error) {
+    console.error('API test error:', error);
+    res.status(500).json({ 
+      error: 'API test failed',
+      hasKey: !!ALPHA_VANTAGE_API_KEY,
+      keyLength: ALPHA_VANTAGE_API_KEY ? ALPHA_VANTAGE_API_KEY.length : 0,
+      message: error.message
+    });
+  }
+});
+
 // Get real-time stock quote
 router.get('/quote/:symbol', async (req, res) => {
   try {
@@ -27,6 +63,18 @@ router.get('/quote/:symbol', async (req, res) => {
       }
     });
     console.log('Alpha Vantage response:', JSON.stringify(response.data, null, 2)); // Debug log
+
+    // Check for API errors first
+    if (response.data['Error Message']) {
+      console.error('Alpha Vantage API Error:', response.data['Error Message']);
+      return res.status(500).json({ error: 'API Error: ' + response.data['Error Message'] });
+    }
+
+    // Check for rate limit or information messages
+    if (response.data['Information']) {
+      console.error('Alpha Vantage Information:', response.data['Information']);
+      return res.status(429).json({ error: 'Rate limit exceeded or API issue: ' + response.data['Information'] });
+    }
 
     const quote = response.data['Global Quote'];
     if (!quote || Object.keys(quote).length === 0) {
