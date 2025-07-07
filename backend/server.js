@@ -7,10 +7,10 @@ require('dotenv').config({ path: path.join(__dirname, '../.env') });
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Debug: Check if environment variables are loaded
+// Debug: Check environment variables
 console.log('Environment check:');
-console.log('ALPHA_VANTAGE_API_KEY:', process.env.ALPHA_VANTAGE_API_KEY ? 'LOADED' : 'NOT LOADED');
 console.log('OPENAI_API_KEY:', process.env.OPENAI_API_KEY ? 'LOADED' : 'NOT LOADED');
+console.log('Using Yahoo Finance API - No rate limits!');
 
 // CORS configuration for production
 const corsOptions = {

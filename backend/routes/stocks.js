@@ -2,43 +2,35 @@ const express = require('express');
 const axios = require('axios');
 const router = express.Router();
 
-const ALPHA_VANTAGE_API_KEY = process.env.ALPHA_VANTAGE_API_KEY;
-const BASE_URL = 'https://www.alphavantage.co/query';
+// Yahoo Finance API (no rate limits, free)
+const YAHOO_BASE_URL = 'https://query1.finance.yahoo.com/v8/finance';
 
-// Debug: Check if API key is loaded
-console.log('Alpha Vantage API Key loaded:', ALPHA_VANTAGE_API_KEY ? 'YES' : 'NO');
+// Debug: Check if we're using Yahoo Finance
+console.log('Using Yahoo Finance API - No rate limits!');
 
-// Test API key and connectivity
+// Test API connectivity
 router.get('/test', async (req, res) => {
   try {
-    if (!ALPHA_VANTAGE_API_KEY) {
-      return res.status(500).json({ 
-        error: 'API key not configured',
-        hasKey: false 
-      });
-    }
-
-    // Test with a simple API call
-    const response = await axios.get(BASE_URL, {
+    // Test with a simple API call to Yahoo Finance
+    const response = await axios.get(`${YAHOO_BASE_URL}/chart/AAPL`, {
       params: {
-        function: 'GLOBAL_QUOTE',
-        symbol: 'AAPL',
-        apikey: ALPHA_VANTAGE_API_KEY
+        interval: '1d',
+        range: '1d'
       }
     });
 
     res.json({
-      hasKey: true,
-      keyLength: ALPHA_VANTAGE_API_KEY.length,
+      hasKey: false, // No API key needed for Yahoo Finance
+      keyLength: 0,
       response: response.data,
-      status: 'API is working'
+      status: 'Yahoo Finance API is working - No rate limits!'
     });
   } catch (error) {
     console.error('API test error:', error);
     res.status(500).json({ 
       error: 'API test failed',
-      hasKey: !!ALPHA_VANTAGE_API_KEY,
-      keyLength: ALPHA_VANTAGE_API_KEY ? ALPHA_VANTAGE_API_KEY.length : 0,
+      hasKey: false,
+      keyLength: 0,
       message: error.message
     });
   }
@@ -48,50 +40,42 @@ router.get('/test', async (req, res) => {
 router.get('/quote/:symbol', async (req, res) => {
   try {
     const { symbol } = req.params;
-    console.log('Fetching quote for:', symbol); // Debug log
+    console.log('Fetching quote for:', symbol);
     
-    if (!ALPHA_VANTAGE_API_KEY) {
-      console.error('API key is missing!');
-      return res.status(500).json({ error: 'API key not configured' });
-    }
-    
-    const response = await axios.get(BASE_URL, {
+    const response = await axios.get(`${YAHOO_BASE_URL}/chart/${symbol.toUpperCase()}`, {
       params: {
-        function: 'GLOBAL_QUOTE',
-        symbol: symbol.toUpperCase(),
-        apikey: ALPHA_VANTAGE_API_KEY
+        interval: '1d',
+        range: '1d'
       }
     });
-    console.log('Alpha Vantage response:', JSON.stringify(response.data, null, 2)); // Debug log
 
-    // Check for API errors first
-    if (response.data['Error Message']) {
-      console.error('Alpha Vantage API Error:', response.data['Error Message']);
-      return res.status(500).json({ error: 'API Error: ' + response.data['Error Message'] });
-    }
+    console.log('Yahoo Finance response received');
 
-    // Check for rate limit or information messages
-    if (response.data['Information']) {
-      console.error('Alpha Vantage Information:', response.data['Information']);
-      return res.status(429).json({ error: 'Rate limit exceeded or API issue: ' + response.data['Information'] });
-    }
-
-    const quote = response.data['Global Quote'];
-    if (!quote || Object.keys(quote).length === 0) {
+    const result = response.data.chart.result[0];
+    if (!result || !result.meta || !result.timestamp) {
       console.log('No quote data found in response');
       return res.status(404).json({ error: 'Stock not found' });
     }
 
+    const meta = result.meta;
+    const timestamp = result.timestamp[0];
+    const quote = result.indicators.quote[0];
+    
+    const currentPrice = meta.regularMarketPrice;
+    const previousClose = meta.previousClose;
+    const change = currentPrice - previousClose;
+    const changePercent = (change / previousClose) * 100;
+
     res.json({
-      symbol: quote['01. symbol'],
-      price: parseFloat(quote['05. price']),
-      change: parseFloat(quote['09. change']),
-      changePercent: quote['10. change percent'],
-      volume: parseInt(quote['06. volume']),
-      previousClose: parseFloat(quote['08. previous close']),
-      open: parseFloat(quote['02. open']),
-      high: parseFloat(quote['03. high']),
-      low: parseFloat(quote['04. low'])
+      symbol: meta.symbol,
+      price: currentPrice,
+      change: change,
+      changePercent: changePercent.toFixed(2) + '%',
+      volume: meta.regularMarketVolume,
+      previousClose: previousClose,
+      open: meta.regularMarketOpen,
+      high: meta.regularMarketDayHigh,
+      low: meta.regularMarketDayLow
     });
   } catch (error) {
     console.error('Error fetching stock quote:', error);
@@ -103,31 +87,38 @@ router.get('/quote/:symbol', async (req, res) => {
 router.get('/historical/:symbol', async (req, res) => {
   try {
     const { symbol } = req.params;
-    const { interval = 'daily' } = req.query;
+    const { interval = '1d' } = req.query;
     
-    const response = await axios.get(BASE_URL, {
+    // Map interval to Yahoo Finance format
+    const yahooInterval = interval === 'daily' ? '1d' : 
+                         interval === 'weekly' ? '1wk' : '1mo';
+    
+    const range = interval === 'daily' ? '1mo' : 
+                  interval === 'weekly' ? '3mo' : '1y';
+    
+    const response = await axios.get(`${YAHOO_BASE_URL}/chart/${symbol.toUpperCase()}`, {
       params: {
-        function: 'TIME_SERIES_' + interval.toUpperCase(),
-        symbol: symbol.toUpperCase(),
-        apikey: ALPHA_VANTAGE_API_KEY
+        interval: yahooInterval,
+        range: range
       }
     });
 
-    const timeSeriesKey = `Time Series (${interval.charAt(0).toUpperCase() + interval.slice(1)})`;
-    const timeSeries = response.data[timeSeriesKey];
-    
-    if (!timeSeries) {
+    const result = response.data.chart.result[0];
+    if (!result || !result.timestamp) {
       return res.status(404).json({ error: 'Historical data not found' });
     }
 
-    const historicalData = Object.entries(timeSeries).map(([date, data]) => ({
-      date,
-      open: parseFloat(data['1. open']),
-      high: parseFloat(data['2. high']),
-      low: parseFloat(data['3. low']),
-      close: parseFloat(data['4. close']),
-      volume: parseInt(data['5. volume'])
-    })).reverse();
+    const timestamps = result.timestamp;
+    const quote = result.indicators.quote[0];
+    
+    const historicalData = timestamps.map((timestamp, index) => ({
+      date: new Date(timestamp * 1000).toISOString().split('T')[0],
+      open: quote.open[index] || 0,
+      high: quote.high[index] || 0,
+      low: quote.low[index] || 0,
+      close: quote.close[index] || 0,
+      volume: quote.volume[index] || 0
+    })).filter(item => item.close > 0); // Filter out invalid data
 
     res.json(historicalData);
   } catch (error) {
@@ -136,25 +127,27 @@ router.get('/historical/:symbol', async (req, res) => {
   }
 });
 
-// Search stocks
+// Search stocks (using Yahoo Finance search)
 router.get('/search/:query', async (req, res) => {
   try {
     const { query } = req.params;
-    const response = await axios.get(BASE_URL, {
+    
+    // Yahoo Finance search endpoint
+    const response = await axios.get(`https://query1.finance.yahoo.com/v1/finance/search`, {
       params: {
-        function: 'SYMBOL_SEARCH',
-        keywords: query,
-        apikey: ALPHA_VANTAGE_API_KEY
+        q: query,
+        quotesCount: 10,
+        newsCount: 0
       }
     });
 
-    const matches = response.data.bestMatches || [];
-    const results = matches.map(match => ({
-      symbol: match['1. symbol'],
-      name: match['2. name'],
-      type: match['3. type'],
-      region: match['4. region'],
-      currency: match['8. currency']
+    const quotes = response.data.quotes || [];
+    const results = quotes.map(quote => ({
+      symbol: quote.symbol,
+      name: quote.shortname || quote.longname,
+      type: quote.quoteType,
+      region: quote.market,
+      currency: quote.currency
     }));
 
     res.json(results);
@@ -164,17 +157,55 @@ router.get('/search/:query', async (req, res) => {
   }
 });
 
-// Get market overview
+// Get market overview (top gainers/losers)
 router.get('/market-overview', async (req, res) => {
   try {
-    const response = await axios.get(BASE_URL, {
-      params: {
-        function: 'TOP_GAINERS_LOSERS',
-        apikey: ALPHA_VANTAGE_API_KEY
+    // Get popular stocks for market overview
+    const popularStocks = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'META', 'NVDA', 'NFLX'];
+    const marketData = {
+      top_gainers: [],
+      top_losers: []
+    };
+
+    // Fetch data for popular stocks
+    const promises = popularStocks.map(async (symbol) => {
+      try {
+        const response = await axios.get(`${YAHOO_BASE_URL}/chart/${symbol}`, {
+          params: {
+            interval: '1d',
+            range: '1d'
+          }
+        });
+
+        const result = response.data.chart.result[0];
+        if (result && result.meta) {
+          const meta = result.meta;
+          const change = meta.regularMarketPrice - meta.previousClose;
+          const changePercent = (change / meta.previousClose) * 100;
+
+          return {
+            ticker: symbol,
+            price: meta.regularMarketPrice,
+            change_amount: change,
+            change_percentage: changePercent,
+            volume: meta.regularMarketVolume
+          };
+        }
+      } catch (error) {
+        console.error(`Error fetching ${symbol}:`, error);
       }
     });
 
-    res.json(response.data);
+    const results = await Promise.all(promises);
+    const validResults = results.filter(result => result);
+
+    // Sort by change percentage
+    validResults.sort((a, b) => b.change_percentage - a.change_percentage);
+
+    marketData.top_gainers = validResults.filter(stock => stock.change_percentage > 0).slice(0, 5);
+    marketData.top_losers = validResults.filter(stock => stock.change_percentage < 0).slice(0, 5);
+
+    res.json(marketData);
   } catch (error) {
     console.error('Error fetching market overview:', error);
     res.status(500).json({ error: 'Failed to fetch market overview' });
