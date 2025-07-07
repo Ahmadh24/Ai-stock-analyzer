@@ -9,11 +9,13 @@ const AIAnalysis = ({ stock }) => {
   const [historicalData, setHistoricalData] = useState([]);
   const [error, setError] = useState(null);
 
+  console.log('AIAnalysis rendered with stock:', stock);
+
   useEffect(() => {
-    if (stock) {
+    if (stock && stock.symbol) {
       fetchHistoricalData();
     }
-  }, [stock]);
+  }, [stock?.symbol]);
 
   useEffect(() => {
     if (historicalData.length > 0) {
@@ -22,6 +24,8 @@ const AIAnalysis = ({ stock }) => {
   }, [historicalData]);
 
   const fetchHistoricalData = async () => {
+    if (!stock || !stock.symbol) return;
+    
     try {
       console.log('Fetching historical data for AI analysis:', stock.symbol);
       const response = await axios.get(`${config.apiUrl}/api/stocks/historical/${stock.symbol}?interval=daily`);
@@ -34,6 +38,8 @@ const AIAnalysis = ({ stock }) => {
   };
 
   const performAIAnalysis = async () => {
+    if (!stock || !stock.symbol) return;
+    
     setLoading(true);
     setAnalysis(null);
     setError(null);
@@ -57,6 +63,21 @@ const AIAnalysis = ({ stock }) => {
       setLoading(false);
     }
   };
+
+  // Early return if stock is null or undefined
+  if (!stock) {
+    console.log('AIAnalysis: stock is null, showing placeholder');
+    return (
+      <div className="bg-white rounded-lg shadow p-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center text-gray-500">
+            <Brain className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+            <p>Please select a stock for AI analysis</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const getRecommendationColor = (recommendation) => {
     if (!recommendation || typeof recommendation !== 'string') return 'text-gray-500';
@@ -128,17 +149,17 @@ const AIAnalysis = ({ stock }) => {
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="text-center p-4 bg-gray-50 rounded-lg">
-            <div className="text-2xl font-bold text-gray-900">${stock.price.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-gray-900">${(stock.price || 0).toFixed(2)}</div>
             <div className="text-sm text-gray-500">Current Price</div>
           </div>
           <div className="text-center p-4 bg-gray-50 rounded-lg">
-            <div className={`text-2xl font-bold ${stock.change >= 0 ? 'text-success-600' : 'text-danger-600'}`}>
-              {stock.change >= 0 ? '+' : ''}{stock.change.toFixed(2)}%
+            <div className={`text-2xl font-bold ${(stock.change || 0) >= 0 ? 'text-success-600' : 'text-danger-600'}`}>
+              {(stock.change || 0) >= 0 ? '+' : ''}{(stock.change || 0).toFixed(2)}%
             </div>
             <div className="text-sm text-gray-500">Today's Change</div>
           </div>
           <div className="text-center p-4 bg-gray-50 rounded-lg">
-            <div className="text-2xl font-bold text-gray-900">{stock.volume.toLocaleString()}</div>
+            <div className="text-2xl font-bold text-gray-900">{(stock.volume || 0).toLocaleString()}</div>
             <div className="text-sm text-gray-500">Volume</div>
           </div>
         </div>
