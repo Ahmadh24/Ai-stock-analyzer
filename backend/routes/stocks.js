@@ -69,7 +69,7 @@ router.get('/quote/:symbol', async (req, res) => {
     res.json({
       symbol: meta.symbol,
       price: currentPrice,
-      change: change,
+      change: parseFloat(changePercent.toFixed(2)),
       changePercent: changePercent.toFixed(2) + '%',
       volume: meta.regularMarketVolume,
       previousClose: previousClose,

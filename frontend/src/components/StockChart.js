@@ -44,10 +44,13 @@ const StockChart = ({ stock }) => {
   const fetchHistoricalData = async () => {
     setLoading(true);
     try {
+      console.log('Fetching historical data for:', stock.symbol, 'timeframe:', timeframe);
       const response = await axios.get(`${config.apiUrl}/api/stocks/historical/${stock.symbol}?interval=${timeframe}`);
+      console.log('Historical data response:', response.data);
       setHistoricalData(response.data);
     } catch (error) {
       console.error('Error fetching historical data:', error);
+      console.error('Error details:', error.response?.data);
     } finally {
       setLoading(false);
     }

@@ -23,10 +23,13 @@ const AIAnalysis = ({ stock }) => {
 
   const fetchHistoricalData = async () => {
     try {
+      console.log('Fetching historical data for AI analysis:', stock.symbol);
       const response = await axios.get(`${config.apiUrl}/api/stocks/historical/${stock.symbol}?interval=daily`);
+      console.log('Historical data for AI:', response.data);
       setHistoricalData(response.data);
     } catch (error) {
-      console.error('Error fetching historical data:', error);
+      console.error('Error fetching historical data for AI:', error);
+      console.error('Error details:', error.response?.data);
     }
   };
 
@@ -36,6 +39,7 @@ const AIAnalysis = ({ stock }) => {
     setError(null);
 
     try {
+      console.log('Performing AI analysis for:', stock.symbol);
       const response = await axios.post(`${config.apiUrl}/api/ai/analyze`, {
         symbol: stock.symbol,
         price: stock.price,
@@ -43,9 +47,11 @@ const AIAnalysis = ({ stock }) => {
         volume: stock.volume,
         historicalData: historicalData.slice(-5)
       });
+      console.log('AI analysis response:', response.data);
       setAnalysis(response.data);
     } catch (error) {
       console.error('Error performing AI analysis:', error);
+      console.error('Error details:', error.response?.data);
       setError('Failed to analyze stock. Please try again.');
     } finally {
       setLoading(false);
