@@ -31,6 +31,8 @@ const StockChart = ({ stock }) => {
   const [loading, setLoading] = useState(true);
   const [timeframe, setTimeframe] = useState('daily');
 
+  console.log('StockChart rendered with stock:', stock);
+
   const timeframes = [
     { value: 'daily', label: '1D' },
     { value: 'weekly', label: '1W' },
@@ -38,10 +40,14 @@ const StockChart = ({ stock }) => {
   ];
 
   useEffect(() => {
-    fetchHistoricalData();
-  }, [stock.symbol, timeframe]);
+    if (stock && stock.symbol) {
+      fetchHistoricalData();
+    }
+  }, [stock?.symbol, timeframe]);
 
   const fetchHistoricalData = async () => {
+    if (!stock || !stock.symbol) return;
+    
     setLoading(true);
     try {
       console.log('Fetching historical data for:', stock.symbol, 'timeframe:', timeframe);
@@ -55,6 +61,18 @@ const StockChart = ({ stock }) => {
       setLoading(false);
     }
   };
+
+  // Early return if stock is null or undefined
+  if (!stock) {
+    console.log('StockChart: stock is null, showing placeholder');
+    return (
+      <div className="bg-white rounded-lg shadow p-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-gray-500">Please select a stock to view chart</div>
+        </div>
+      </div>
+    );
+  }
 
   const chartData = {
     labels: historicalData.map(item => new Date(item.date)),
@@ -156,14 +174,14 @@ const StockChart = ({ stock }) => {
         <div className="flex justify-between items-start mb-4">
           <div>
             <h2 className="text-2xl font-bold text-gray-900">{stock.symbol}</h2>
-            <p className="text-gray-500">${stock.price.toFixed(2)}</p>
+            <p className="text-gray-500">${(stock.price || 0).toFixed(2)}</p>
           </div>
           <div className="text-right">
-            <div className={`text-lg font-semibold ${stock.change >= 0 ? 'text-success-600' : 'text-danger-600'}`}>
-              {stock.change >= 0 ? '+' : ''}{stock.change.toFixed(2)}%
+            <div className={`text-lg font-semibold ${(stock.change || 0) >= 0 ? 'text-success-600' : 'text-danger-600'}`}>
+              {(stock.change || 0) >= 0 ? '+' : ''}{(stock.change || 0).toFixed(2)}%
             </div>
             <div className="text-sm text-gray-500">
-              {stock.change >= 0 ? '+' : ''}{stock.changePercent}
+              {(stock.change || 0) >= 0 ? '+' : ''}{stock.changePercent || '0.00%'}
             </div>
           </div>
         </div>
@@ -171,19 +189,19 @@ const StockChart = ({ stock }) => {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
           <div>
             <div className="text-gray-500">Open</div>
-            <div className="font-medium">${stock.open.toFixed(2)}</div>
+            <div className="font-medium">${(stock.open || 0).toFixed(2)}</div>
           </div>
           <div>
             <div className="text-gray-500">High</div>
-            <div className="font-medium">${stock.high.toFixed(2)}</div>
+            <div className="font-medium">${(stock.high || 0).toFixed(2)}</div>
           </div>
           <div>
             <div className="text-gray-500">Low</div>
-            <div className="font-medium">${stock.low.toFixed(2)}</div>
+            <div className="font-medium">${(stock.low || 0).toFixed(2)}</div>
           </div>
           <div>
             <div className="text-gray-500">Volume</div>
-            <div className="font-medium">{stock.volume.toLocaleString()}</div>
+            <div className="font-medium">{(stock.volume || 0).toLocaleString()}</div>
           </div>
         </div>
       </div>

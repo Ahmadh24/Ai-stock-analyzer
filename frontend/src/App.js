@@ -19,13 +19,39 @@ function App() {
   ];
 
   const renderContent = () => {
+    console.log('Rendering content for tab:', activeTab, 'selectedStock:', selectedStock);
+    
     switch (activeTab) {
       case 'search':
         return <StockSearch onStockSelect={setSelectedStock} />;
       case 'chart':
-        return selectedStock ? <StockChart stock={selectedStock} /> : <div className="text-center text-gray-500 mt-8">Select a stock to view charts</div>;
+        if (!selectedStock) {
+          return (
+            <div className="bg-white rounded-lg shadow p-6">
+              <div className="flex items-center justify-center h-64">
+                <div className="text-center text-gray-500">
+                  <BarChart3 className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                  <p>Select a stock to view charts</p>
+                </div>
+              </div>
+            </div>
+          );
+        }
+        return <StockChart stock={selectedStock} />;
       case 'ai':
-        return selectedStock ? <AIAnalysis stock={selectedStock} /> : <div className="text-center text-gray-500 mt-8">Select a stock for AI analysis</div>;
+        if (!selectedStock) {
+          return (
+            <div className="bg-white rounded-lg shadow p-6">
+              <div className="flex items-center justify-center h-64">
+                <div className="text-center text-gray-500">
+                  <Brain className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                  <p>Select a stock for AI analysis</p>
+                </div>
+              </div>
+            </div>
+          );
+        }
+        return <AIAnalysis stock={selectedStock} />;
       case 'market':
         return <MarketOverview />;
       case 'portfolio':
