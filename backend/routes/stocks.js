@@ -42,22 +42,26 @@ router.get('/quote/:symbol', async (req, res) => {
     const { symbol } = req.params;
     console.log('Fetching quote for:', symbol);
     
-    const response = await axios.get(`${YAHOO_BASE_URL}/chart/${symbol.toUpperCase()}`, {
+    // Try the chart endpoint first
+    const chartResponse = await axios.get(`${YAHOO_BASE_URL}/chart/${symbol.toUpperCase()}`, {
       params: {
         interval: '1d',
-        range: '1d'
+        range: '5d' // Get 5 days to ensure we have previous close
       }
     });
 
-    console.log('Yahoo Finance response received');
+    console.log('Yahoo Finance chart response received');
 
-    const result = response.data.chart.result[0];
+    const result = chartResponse.data.chart.result[0];
     if (!result || !result.meta || !result.timestamp) {
       console.log('No quote data found in response');
       return res.status(404).json({ error: 'Stock not found' });
     }
 
     const meta = result.meta;
+    const timestamps = result.timestamp;
+    const quote = result.indicators.quote[0];
+    
     console.log('Meta data:', {
       symbol: meta.symbol,
       currentPrice: meta.regularMarketPrice,
@@ -69,17 +73,65 @@ router.get('/quote/:symbol', async (req, res) => {
     });
     
     const currentPrice = meta.regularMarketPrice;
-    const previousClose = meta.previousClose;
     
-    // Handle cases where previousClose might be null or undefined
+    // Try multiple approaches to get previous close
+    let previousClose = meta.previousClose;
+    
+    // If previousClose is not available in meta, try to get it from the quote data
+    if (!previousClose || previousClose <= 0) {
+      console.log('Previous close not in meta, trying quote data...');
+      // Get the last two data points to calculate change
+      if (quote.close && quote.close.length >= 2) {
+        const lastIndex = quote.close.length - 1;
+        const currentClose = quote.close[lastIndex];
+        const previousCloseFromQuote = quote.close[lastIndex - 1];
+        
+        if (currentClose && previousCloseFromQuote && previousCloseFromQuote > 0) {
+          previousClose = previousCloseFromQuote;
+          console.log('Using previous close from quote data:', previousClose);
+        }
+      }
+    }
+    
+    // Calculate change
     let change = 0;
     let changePercent = 0;
     
     if (previousClose && previousClose > 0) {
       change = currentPrice - previousClose;
       changePercent = (change / previousClose) * 100;
+      console.log('Change calculation:', { currentPrice, previousClose, change, changePercent });
     } else {
-      console.log('Previous close is null or invalid, using 0 for change calculation');
+      console.log('Previous close is still null or invalid, trying alternative method...');
+      
+      // Try using the quote endpoint as a fallback
+      try {
+        const quoteResponse = await axios.get(`https://query1.finance.yahoo.com/v7/finance/quote`, {
+          params: {
+            symbols: symbol.toUpperCase()
+          }
+        });
+        
+        console.log('Quote endpoint response:', quoteResponse.data);
+        
+        if (quoteResponse.data.quoteResponse && quoteResponse.data.quoteResponse.result && quoteResponse.data.quoteResponse.result.length > 0) {
+          const quoteData = quoteResponse.data.quoteResponse.result[0];
+          if (quoteData.regularMarketPreviousClose && quoteData.regularMarketPreviousClose > 0) {
+            previousClose = quoteData.regularMarketPreviousClose;
+            change = currentPrice - previousClose;
+            changePercent = (change / previousClose) * 100;
+            console.log('Using quote endpoint data:', { currentPrice, previousClose, change, changePercent });
+          }
+        }
+      } catch (quoteError) {
+        console.log('Quote endpoint failed, using open price for change calculation');
+        // Try to get a reasonable estimate from the day's range
+        if (meta.regularMarketOpen && meta.regularMarketOpen > 0) {
+          change = currentPrice - meta.regularMarketOpen;
+          changePercent = (change / meta.regularMarketOpen) * 100;
+          console.log('Using open price for change calculation:', { currentPrice, open: meta.regularMarketOpen, change, changePercent });
+        }
+      }
     }
 
     const responseData = {
