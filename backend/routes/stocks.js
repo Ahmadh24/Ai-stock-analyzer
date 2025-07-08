@@ -58,15 +58,31 @@ router.get('/quote/:symbol', async (req, res) => {
     }
 
     const meta = result.meta;
-    const timestamp = result.timestamp[0];
-    const quote = result.indicators.quote[0];
+    console.log('Meta data:', {
+      symbol: meta.symbol,
+      currentPrice: meta.regularMarketPrice,
+      previousClose: meta.previousClose,
+      open: meta.regularMarketOpen,
+      high: meta.regularMarketDayHigh,
+      low: meta.regularMarketDayLow,
+      volume: meta.regularMarketVolume
+    });
     
     const currentPrice = meta.regularMarketPrice;
     const previousClose = meta.previousClose;
-    const change = currentPrice - previousClose;
-    const changePercent = (change / previousClose) * 100;
+    
+    // Handle cases where previousClose might be null or undefined
+    let change = 0;
+    let changePercent = 0;
+    
+    if (previousClose && previousClose > 0) {
+      change = currentPrice - previousClose;
+      changePercent = (change / previousClose) * 100;
+    } else {
+      console.log('Previous close is null or invalid, using 0 for change calculation');
+    }
 
-    res.json({
+    const responseData = {
       symbol: meta.symbol,
       price: currentPrice,
       change: parseFloat(changePercent.toFixed(2)),
@@ -76,7 +92,10 @@ router.get('/quote/:symbol', async (req, res) => {
       open: meta.regularMarketOpen,
       high: meta.regularMarketDayHigh,
       low: meta.regularMarketDayLow
-    });
+    };
+
+    console.log('Sending response:', responseData);
+    res.json(responseData);
   } catch (error) {
     console.error('Error fetching stock quote:', error);
     res.status(500).json({ error: 'Failed to fetch stock data' });
